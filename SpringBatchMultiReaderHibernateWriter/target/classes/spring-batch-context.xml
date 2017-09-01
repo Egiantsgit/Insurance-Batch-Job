@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch
+		http://www.springframework.org/schema/batch/spring-batch-3.0.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+
+	<import resource="classpath:context-model.xml" />
+
+
+
+	<bean id="task" class="com.chai.batch.DAO.InsuranceDAO" />
+	<bean id="task1" class="com.chai.batch.DAO.ProviderDAO" />
+	  <bean id="task2" class="com.chai.batch.DAO.ConversionDAO" />
+
+	<bean id="jobRepository"
+		class="org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean" />
+
+	<bean id="jobLauncher"
+		class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+		<property name="jobRepository" ref="jobRepository" />
+	</bean>
+
+
+	<bean id="multiResourceItemReader"
+		class="org.springframework.batch.item.file.MultiResourceItemReader">
+		<property name="resources" value="classpath:csv/record.txt" />
+		<property name="delegate" ref="flatFileItemReader" />
+	</bean>
+
+
+	<bean id="flatFileItemReader" class="org.springframework.batch.item.file.FlatFileItemReader"
+		scope="step">
+
+		<property name="lineMapper">
+
+			<bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+
+				<property name="fieldSetMapper">
+					<!-- Mapper which maps each individual items in a record to properties 
+						in POJO -->
+					<bean class="com.chai.batch.providerFieldSetMapper" />
+				</property>
+
+
+				<!-- A tokenizer class to be used when items in input record are separated 
+					by specific characters -->
+				<property name="lineTokenizer">
+					<bean
+						class="org.springframework.batch.item.file.transform.FixedLengthTokenizer">
+
+						<property name="names"
+							value="firstName, lastName, membershipType, hospitalVisits, totalAmount, metallicType, serviceCovered, 
+							doctorVisit, operation, claim, deductible, providerName, DateOfVisit, ProcessedDate, pid" />
+						<property name="columns" value="1, 17, 35, 52, 62, 74, 84, 98, 107, 116, 121, 129, 148, 162, 175" />
+
+					</bean>
+				</property>
+
+			</bean>
+
+		</property>
+
+	</bean>
+
+
+
+	<bean id="databaseItemWriter"
+		class="org.springframework.batch.item.database.HibernateItemWriter">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+
+
+	<bean id="itemProcessor" class="com.chai.batch.ProviderResultItemProcessor" />
+
+
+	<bean id="jobListener" class="com.chai.batch.ProviderJobListner" />
+
+
+
+	<batch:job id="patientRecordJob">
+		<batch:step id="step1" next="step2">
+			<batch:tasklet transaction-manager="transactionManager">
+				<batch:chunk reader="multiResourceItemReader" writer="databaseItemWriter"
+					processor="itemProcessor" commit-interval="1" />
+			</batch:tasklet>
+
+		</batch:step>
+		<batch:step id="step2" next="step3">
+			<batch:tasklet ref="task">
+			</batch:tasklet>
+		</batch:step>
+
+		<batch:step id="step3" next="step4">
+			<batch:tasklet ref="task1">
+			</batch:tasklet>
+		</batch:step>
+
+	  	<batch:step id="step4">
+
+			<batch:tasklet ref="task2">
+			</batch:tasklet>
+			
+		</batch:step>
+		
+
+
+
+		<batch:listeners>
+			<batch:listener ref="jobListener" />
+		</batch:listeners>
+	</batch:job>
+
+</beans>			
